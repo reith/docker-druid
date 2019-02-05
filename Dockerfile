@@ -2,7 +2,7 @@ FROM ubuntu:14.04
 
 # Set version and github repo which you want to build from
 ENV GITHUB_OWNER druid-io
-ENV DRUID_VERSION 0.12.1
+ENV DRUID_VERSION 0.13.0-incubating
 ENV ZOOKEEPER_VERSION 3.4.10
 
 # Java 8
@@ -46,17 +46,20 @@ WORKDIR /tmp/druid
 # package and install Druid locally
 # use versions-maven-plugin 2.1 to work around https://jira.codehaus.org/browse/MVERSIONS-285
 RUN mvn -U -B org.codehaus.mojo:versions-maven-plugin:2.1:set -DgenerateBackupPoms=false -DnewVersion=$DRUID_VERSION \
-  && mvn -U -B install -DskipTests=true -Dmaven.javadoc.skip=true \
+  && mvn -U -B -Pdist install -DskipTests=true -Dmaven.javadoc.skip=true \
+  && ls -l \
+  && find . -name hadoop-dependencies \
   && cp services/target/druid-services-$DRUID_VERSION-selfcontained.jar /usr/local/druid/lib \
+  && wget -P distribution/target/extensions/mysql-metadata-storage http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.38/mysql-connector-java-5.1.38.jar \
   && cp -r distribution/target/extensions /usr/local/druid/ \
   && cp -r distribution/target/hadoop-dependencies /usr/local/druid/ \
   && apt-get purge --auto-remove -y git \
   && apt-get clean \
   && rm -rf /tmp/* \
-            /var/tmp/* \
-            /usr/local/apache-maven-3.2.5 \
-            /usr/local/apache-maven \
-            /root/.m2
+            /var/tmp/*
+	    /usr/local/apache-maven-3.2.5 \
+	    /usr/local/apache-maven \
+	    /root/.m2
 
 WORKDIR /
 
@@ -69,7 +72,7 @@ RUN find /var/lib/mysql -type f -exec touch {} \; \
           -Ddruid.extensions.directory=/usr/local/druid/extensions \
           -Ddruid.extensions.loadList=[\"mysql-metadata-storage\"] \
           -Ddruid.metadata.storage.type=mysql \
-          io.druid.cli.Main tools metadata-init \
+          org.apache.druid.cli.Main tools metadata-init \
               --connectURI="jdbc:mysql://localhost:3306/druid" \
               --user=druid --password=diurd \
       && mysql -u root druid < sample-data.sql \
